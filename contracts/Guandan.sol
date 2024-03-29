@@ -41,22 +41,37 @@ contract Guandan {
     struct card {
         uint num;//1-13
         uint color;//红黑草方王
+        address owner;
         bool status;
+    }
+
+    struct cardArray {
+        address sender;
+        card[] cards;
+    }
+
+    struct round {
+        uint roundId;
+        uint level;
+        uint currentNum;
+        cardType currentType;
+        address currentSender;
+        bool isOver;
+        bool isValid;
     }
 
     struct game {
         uint gameId;
-        uint round;
-        uint level;//级牌
+        uint roundId;
         address[] playerAddrs;
-        uint currentNum;
-        cardType currentType;
-        uint currentCardLevel;
+        address[] lastRoundOrder;
+        uint status;//0-invalid 1-init 2-running 3-over
     }
 
     mapping(address => mapping(uint => card)) cardMap;
     mapping(address => player) players;
     mapping(uint => game) games;
+    mapping(uint => mapping(uint => round)) gameRound; 
 
     modifier onlyOwner() {
         require(msg.sender == admin,"Only contract owner can call this function!");
@@ -170,9 +185,13 @@ contract Guandan {
 
     function initGame(address[] memory playerAddrs) public onlyOwner{
         require(checkPlayers(playerAddrs) == true,"Player check failed.");
-        game memory g = game(nextGameId,0,2,playerAddrs,0,cardType.init,0);
+        game memory g = game(nextGameId,0,playerAddrs,playerAddrs,1);
         games[nextGameId] = g;
         nextGameId++;
+    }
+
+    function checkGameId(uint gameId) public returns(bool) {
+        return (games[gameId].status != 0 && games[gameId].status != 3);
     }
 
     function getCard(uint cardNum) public returns(uint,uint) {
@@ -189,6 +208,13 @@ contract Guandan {
         return (color,num);
     }
 
+    function checkCardArray(address sender,uint[] memory cardIds) public returns(bool) {
+        uint arraySize = cardIds.length;
+        for(uint i = 0;i < arraySize;i++){
+            if(cardMap[sender][cardIds[i]].owner != sender) return false;
+        }
+        return true;
+    }
 
     function randomHandCard(address[] memory playerAddrs) public onlyOwner{
         require(deck.length >= 108, "Invalid deck length.");
@@ -202,16 +228,36 @@ contract Guandan {
                 uint c;
                 uint n;
                 (c,n) = getCard(cardNum);
-                card memory tempCard = card(c,n,true);
+                card memory tempCard = card(c,n,playerAddrs[j],true);
                 cardMap[playerAddrs[j]][i] = tempCard;
             }
         }
     }
 
-    function start(address[] memory playerAddrs) public {
-        initGame(playerAddrs);
-        randomHandCard(playerAddrs);
-
+    function initRound(uint gameId,address[] memory playerAddrs) public {
+        require(games[gameId].status == 0 || games[gameId].status == 3,"This game doesn't exist or is over.");
+        round memory r = round(games[gameId].roundId,2,0,cardType.unknown,address(0),false,true);
+        gameRound[gameId][r.roundId] = r;
+        games[gameId].roundId++;
+        randomHandCard(olayerAddrs);
     }
+
+    function checkRoundId(uint gameId,uint roundId) returns(bool) {
+        if(checkGameId(gameId) == false) return false;
+        return (gameRound[gameId][roundId].isOver == false && gameRound[gameId][roundId].isValid == true);
+    }
+
+    function sendCardArray(uint gameId,uint roundId,address sender,cardArray[] memory cardArr) public return(bool){
+        require(checkRoundId(gameId,roundId) == true,"Invalid gameId and roundId.");
+        
+        
+        
+        
+        
+        
+        
+        return true;
+    }
+
 
 }
