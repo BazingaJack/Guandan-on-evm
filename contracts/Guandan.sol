@@ -12,21 +12,19 @@ contract Guandan {
     uint public globalSalt;
 
     enum cardType {
-        init,
         unknown,
         single,
         pairs,
-        triplePair,
         tripleSingle,
-        twoTripleSingle,
-        triplePlusPairs,
-        straight,
-        //上面是1类，下面是2类
         fourBoom,
+        rocket,
         fiveBoom,
-        sixBoom,
+        triplePlusPairs,
         sameColorStraight,
-        rocket
+        straight,
+        sixBoom,
+        triplePair,
+        twoTripleSingle
     }
     
     struct player {
@@ -142,7 +140,7 @@ contract Guandan {
         return res;
     }
 
-    function judgeCardType(card[] memory cards) public pure returns (cardType,uint) {
+    function judgeCardType(card[] memory cards) public pure returns (cardType cType, uint256 cardCount) {
         uint len = cards.length;
         if(len == 1){
             return (cardType.single,cards[0].num);
@@ -177,9 +175,10 @@ contract Guandan {
     function registerPlayer(address playerAddr) public onlyOwner {
         require(players[playerAddr].isValid == false,"This address has already been registered as a player.");
         player memory p = player(playerAddr,0,0,0,0,address(0),0,0,true);
+        players[playerAddr] = p;
     }
 
-    function checkPlayers(address[] memory playerAddrs) public onlyOwner returns (bool){
+    function checkPlayers(address[] memory playerAddrs) public view onlyOwner returns (bool){
         bool res = true;
         for(uint i = 0; i < playerAddrs.length;i++){
             if(players[playerAddrs[i]].isValid == false) {
@@ -190,7 +189,7 @@ contract Guandan {
         return res;
     }
 
-    function randomTeammate(uint salt) public returns(uint) {
+    function randomTeammate(uint salt) public view returns(uint) {
         uint randomIndex = uint(keccak256(abi.encodePacked(block.timestamp,salt))) % 3;
         return randomIndex;
     }
@@ -219,11 +218,11 @@ contract Guandan {
         }
     }
 
-    function checkGameId(uint gameId) public returns(bool) {
+    function checkGameId(uint gameId) public view returns(bool) {
         return (games[gameId].status != 0 && games[gameId].status != 3);
     }
 
-    function getCard(uint cardNum) public returns(uint,uint) {
+    function getCard(uint cardNum) public pure returns(uint,uint) {
         // 0-12 54-66 红桃2-A
         // 13-25 67-79 黑桃2-A
         // 26-38 80-92 梅花2-A
@@ -237,7 +236,7 @@ contract Guandan {
         return (color,num);
     }
 
-    function checkCardArray(address sender,cardArray memory cardArr) public returns(bool) {
+    function checkCardArray(address sender,cardArray memory cardArr) public view returns(bool) {
         uint arraySize = cardArr.cards.length;
         for(uint i = 0;i < arraySize;i++){
             if(cardMap[sender][cardArr.cards[i].cardId].owner != sender) return false;
@@ -247,7 +246,7 @@ contract Guandan {
 
     function randomHandCard(address[] memory playerAddrs) public onlyOwner{
         require(deck.length >= 108, "Invalid deck length.");
-        uint remaining = 108;
+        uint remaining = 128;
         for(uint i = 0;i < 27;i++){
             for(uint j = 0;j < 4;j++){
                 uint randomIndex = uint(keccak256(abi.encodePacked(block.timestamp,i,j))) % remaining;
@@ -266,19 +265,19 @@ contract Guandan {
     }
 
     function initRound(uint gameId,address[] memory playerAddrs) public {
-        require(games[gameId].status == 0 || games[gameId].status == 3,"This game doesn't exist or is over.");
+        require(games[gameId].status == 1 || games[gameId].status == 2,"This game doesn't exist or is over.");
         round memory r = round(games[gameId].roundId,2,0,cardType.unknown,address(0),false,false,true);
         gameRound[gameId][r.roundId] = r;
         games[gameId].roundId++;
         randomHandCard(playerAddrs);
     }
 
-    function checkRoundId(uint gameId,uint roundId) public returns(bool) {
+    function checkRoundId(uint gameId,uint roundId) public view returns(bool) {
         if(checkGameId(gameId) == false) return false;
         return (gameRound[gameId][roundId].isOver == false && gameRound[gameId][roundId].isValid == true);
     }
 
-    function sendCardArray(uint gameId,uint roundId,address sender,cardArray memory cardArrs) public returns(bool){
+    function sendCardArray(uint gameId,uint roundId,address sender,cardArray memory cardArrs) public view returns(bool) {
         if(cardArrs.cards.length == 0) return true;
         require(checkRoundId(gameId,roundId) == true,"Invalid gameId and roundId.");
         require(checkCardArray(sender,cardArrs) == true,"Invalid card array.");
@@ -311,7 +310,7 @@ contract Guandan {
             if(players[order[0]].teammateAddr == order[1]){
                 if(flag) {
                     if(cardMap[order[2]][26].status == false || players[order[2]].maxCard != 16) return false;
-                    if(cardMap[order[3]][26].status == false || players[order[2]].maxCard != 16) return false;
+                    if(cardMap[order[3]][26].status == false || players[order[3]].maxCard != 16) return false;
                 }
                 if(fromAddr.length != 4) return false;
                 for(uint i = 0;i < 4;i++){
@@ -365,7 +364,7 @@ contract Guandan {
         return(true,order);
     }
 
-    function gameResultQuery(uint gameId) public returns(bool,address,address) {
+    function gameResultQuery(uint gameId) public view returns(bool,address,address) {
         require(checkGameId(gameId) == true,"Invalid gameId.");
         if(games[gameId].status != 3) return(false,address(0),address(0));
         else return (true,games[gameId].winer,players[games[gameId].winer].teammateAddr);
